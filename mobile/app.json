@@ -1,9 +1,9 @@
 {
   "expo": {
-    "jsEngine": "hermes",
     "newArchEnabled": true,
+    "jsEngine": "hermes",
     "name": "BookCars",
-    "version": "8.4.0",
+    "version": "8.6.0",
     "slug": "bookcars",
     "icon": "./assets/icon.png",
     "assetBundlePatterns": [
@@ -14,7 +14,7 @@
       "image": "./assets/splash.png"
     },
     "android": {
-      "versionCode": 840,
+      "versionCode": 860,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png"
       },
@@ -24,10 +24,11 @@
       "package": "com.bookcars"
     },
     "ios": {
-      "buildNumber": "8.4.0",
+      "buildNumber": "8.6.0",
       "supportsTablet": true,
       "icon": "./assets/icon.png",
-      "bundleIdentifier": "com.bookcars"
+      "bundleIdentifier": "com.bookcars",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "plugins": [
       "expo-localization",
@@ -53,8 +54,24 @@
           "iCloudContainerEnvironment": "Production"
         }
       ],
+      "@react-native-google-signin/google-signin",
+      "expo-apple-authentication",
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "FACEBOOK_APP_ID",
+          "clientToken": "FACEBOOK_CLIENT_TOKEN",
+          "displayName": "BookCars",
+          "scheme": "FACEBOOK_SCHEME",
+          "advertiserIDCollectionEnabled": false,
+          "autoLogAppEventsEnabled": false,
+          "isAutoInitEnabled": true
+        }
+      ],
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      "react-native-fbsdk-next",
+      "@react-native-community/datetimepicker"
     ],
     "owner": "aelassas",
     "extra": {

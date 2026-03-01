@@ -45,8 +45,8 @@ export const create = async (req: Request, res: Response) => {
     await booking.save()
     res.json(booking)
   } catch (err) {
-    logger.error(`[booking.create] ${i18n.t('DB_ERROR')} ${JSON.stringify(req.body)}`, err)
-    res.status(400).send(i18n.t('DB_ERROR') + err)
+    logger.error(`[booking.create] ${i18n.t('ERROR')} ${JSON.stringify(req.body)}`, err)
+    res.status(400).send(i18n.t('ERROR') + err)
   }
 }
 
@@ -223,10 +223,22 @@ export const checkout = async (req: Request, res: Response) => {
 
       // create license
       if (license) {
-        const tempLicense = path.join(env.CDN_TEMP_LICENSES, license)
-        const filename = `${user._id.toString()}${path.extname(tempLicense)}`
-        const filepath = path.join(env.CDN_LICENSES, filename)
-        await asyncFs.rename(tempLicense, filepath)
+        const safeLicense = path.basename(license)
+        const tempLicensePath = path.resolve(env.CDN_TEMP_LICENSES, safeLicense)
+        const filename = `${user._id.toString()}${path.extname(safeLicense)}`
+        const destPath = path.resolve(env.CDN_LICENSES, filename)
+
+        // security check: restrict allowed extensions
+        const ext = path.extname(safeLicense)
+        if (!env.allowedLicenseExtensions.includes(ext.toLowerCase())) {
+          throw new Error('Invalid license file type')
+        }
+
+        if (!destPath.startsWith(path.resolve(env.CDN_LICENSES) + path.sep)) {
+          throw new Error('Invalid destination path for license')
+        }
+
+        await asyncFs.rename(tempLicensePath, destPath)
         user.license = filename
         await user.save()
       }
@@ -432,7 +444,7 @@ const notifyDriver = async (booking: env.Booking) => {
   const pushToken = await PushToken.findOne({ user: driver._id })
   if (pushToken) {
     const { token } = pushToken
-    const expo = new Expo({ accessToken: env.EXPO_ACCESS_TOKEN, useFcmV1: true })
+    const expo = new Expo({ accessToken: env.EXPO_ACCESS_TOKEN })
 
     if (!Expo.isExpoPushToken(token)) {
       logger.info(`Push token ${token} is not a valid Expo push token.`)
@@ -507,7 +519,7 @@ export const update = async (req: Request, res: Response) => {
       // begin of security check
       const sessionUserId = req.user?._id
       const sessionUser = await User.findById(sessionUserId)
-      if (!sessionUser || sessionUser.type == bookcarsTypes.UserType.User || (sessionUser.type == bookcarsTypes.UserType.Supplier && sessionUserId !== booking.supplier?.toString())) {
+      if (!sessionUser || sessionUser.type === bookcarsTypes.UserType.User || (sessionUser.type === bookcarsTypes.UserType.Supplier && sessionUserId !== booking.supplier?.toString())) {
         logger.error(`[booking.update] Unauthorized attempt to update booking ${booking._id.toString()} by user ${sessionUserId}`)
         res.status(403).send('Forbidden: You cannot update booking information')
         return
@@ -610,8 +622,8 @@ export const update = async (req: Request, res: Response) => {
     logger.error('[booking.update] Booking not found:', body.booking._id)
     res.sendStatus(204)
   } catch (err) {
-    logger.error(`[booking.update] ${i18n.t('DB_ERROR')} ${JSON.stringify(req.body)}`, err)
-    res.status(400).send(i18n.t('DB_ERROR') + err)
+    logger.error(`[booking.update] ${i18n.t('ERROR')} ${JSON.stringify(req.body)}`, err)
+    res.status(400).send(i18n.t('ERROR') + err)
   }
 }
 
@@ -643,8 +655,8 @@ export const updateStatus = async (req: Request, res: Response) => {
 
     res.sendStatus(200)
   } catch (err) {
-    logger.error(`[booking.updateStatus] ${i18n.t('DB_ERROR')} ${JSON.stringify(req.body)}`, err)
-    res.status(400).send(i18n.t('DB_ERROR') + err)
+    logger.error(`[booking.updateStatus] ${i18n.t('ERROR')} ${JSON.stringify(req.body)}`, err)
+    res.status(400).send(i18n.t('ERROR') + err)
   }
 }
 
@@ -671,7 +683,7 @@ export const deleteBookings = async (req: Request, res: Response) => {
 
       if (booking) {
         // begin of security check
-        if (!sessionUser || sessionUser.type == bookcarsTypes.UserType.User || (sessionUser.type == bookcarsTypes.UserType.Supplier && sessionUserId !== booking.supplier?.toString())) {
+        if (!sessionUser || sessionUser.type === bookcarsTypes.UserType.User || (sessionUser.type === bookcarsTypes.UserType.Supplier && sessionUserId !== booking.supplier?.toString())) {
           logger.error(`[booking.deleteBookings] Unauthorized attempt to delete booking ${booking._id.toString()} by user ${sessionUserId}`)
           unauthorizedAttemptLogged = true
           continue
@@ -690,8 +702,8 @@ export const deleteBookings = async (req: Request, res: Response) => {
 
     res.sendStatus(200)
   } catch (err) {
-    logger.error(`[booking.deleteBookings] ${i18n.t('DB_ERROR')} ${JSON.stringify(req.body)}`, err)
-    res.status(400).send(i18n.t('DB_ERROR') + err)
+    logger.error(`[booking.deleteBookings] ${i18n.t('ERROR')} ${JSON.stringify(req.body)}`, err)
+    res.status(400).send(i18n.t('ERROR') + err)
   }
 }
 
@@ -715,8 +727,8 @@ export const deleteTempBooking = async (req: Request, res: Response) => {
     await booking?.deleteOne()
     res.sendStatus(200)
   } catch (err) {
-    logger.error(`[booking.deleteTempBooking] ${i18n.t('DB_ERROR')} ${JSON.stringify({ bookingId, sessionId })}`, err)
-    res.status(400).send(i18n.t('DB_ERROR') + err)
+    logger.error(`[booking.deleteTempBooking] ${i18n.t('ERROR')} ${JSON.stringify({ bookingId, sessionId })}`, err)
+    res.status(400).send(i18n.t('ERROR') + err)
   }
 }
 
@@ -761,16 +773,6 @@ export const getBooking = async (req: Request, res: Response) => {
       .lean()
 
     if (booking) {
-      // begin of security check
-      const sessionUserId = req.user?._id
-      const sessionUser = await User.findById(sessionUserId)
-      if (!sessionUser || sessionUser.type == bookcarsTypes.UserType.User || (sessionUser.type == bookcarsTypes.UserType.Supplier && sessionUserId !== booking.supplier._id?.toString())) {
-        logger.error(`[booking.getBooking] Unauthorized attempt to get booking ${id} by user ${sessionUserId}`)
-        res.status(403).send('Forbidden: You cannot get booking information')
-        return
-      }
-      // end of security check
-
       const { language } = req.params
 
       booking.supplier = {
@@ -799,8 +801,8 @@ export const getBooking = async (req: Request, res: Response) => {
     logger.error('[booking.getBooking] Booking not found:', id)
     res.sendStatus(204)
   } catch (err) {
-    logger.error(`[booking.getBooking] ${i18n.t('DB_ERROR')} ${id}`, err)
-    res.status(400).send(i18n.t('DB_ERROR') + err)
+    logger.error(`[booking.getBooking] ${i18n.t('ERROR')} ${id}`, err)
+    res.status(400).send(i18n.t('ERROR') + err)
   }
 }
 
@@ -826,8 +828,8 @@ export const getBookingId = async (req: Request, res: Response) => {
     }
     res.json(booking?._id.toString())
   } catch (err) {
-    logger.error(`[booking.getBookingId] (sessionId) ${i18n.t('DB_ERROR')} ${sessionId}`, err)
-    res.status(400).send(i18n.t('DB_ERROR') + err)
+    logger.error(`[booking.getBookingId] (sessionId) ${i18n.t('ERROR')} ${sessionId}`, err)
+    res.status(400).send(i18n.t('ERROR') + err)
   }
 }
 
@@ -848,7 +850,7 @@ export const getBookings = async (req: Request, res: Response) => {
     let suppliers = body.suppliers.map((id) => new mongoose.Types.ObjectId(id))
     const {
       statuses,
-      user,
+      // user,
       car,
     } = body
     const from = (body.filter && body.filter.from && new Date(body.filter.from)) || null
@@ -859,26 +861,29 @@ export const getBookings = async (req: Request, res: Response) => {
     let keyword = (body.filter && body.filter.keyword) || ''
     const options = 'i'
 
-    // begin of security check
-    const sessionUserId = req.user?._id
-    const sessionUser = await User.findById(sessionUserId)
-    if (!sessionUser || sessionUser.type == bookcarsTypes.UserType.User) {
-      logger.error(`[booking.getBookings] Unauthorized attempt to get bookings by user ${sessionUserId}`)
-      res.status(403).send('Forbidden: You cannot get booking information')
-      return
-    }
-    if (sessionUser.type == bookcarsTypes.UserType.Supplier) {
-      suppliers = [new mongoose.Types.ObjectId(sessionUserId)]
-    }
-    // end of security check
-
     const $match: mongoose.QueryFilter<any> = {
       $and: [{ 'supplier._id': { $in: suppliers } }, { status: { $in: statuses } }, { expireAt: null }],
     }
 
-    if (user) {
-      $match.$and!.push({ 'driver._id': { $eq: new mongoose.Types.ObjectId(user) } })
+    // begin of security check
+    const sessionUserId = req.user?._id
+    const sessionUser = await User.findById(sessionUserId)
+    if (!sessionUser) {
+      logger.error(`[booking.getBookings] Unauthorized attempt to get bookings by user ${sessionUserId}`)
+      res.status(403).send('Forbidden: You cannot get booking information')
+      return
     }
+    if (sessionUser.type === bookcarsTypes.UserType.Supplier) {
+      suppliers = [new mongoose.Types.ObjectId(sessionUserId)]
+    }
+    if (sessionUser.type === bookcarsTypes.UserType.User) {
+      $match.$and!.push({ 'driver._id': { $eq: new mongoose.Types.ObjectId(sessionUser._id) } })
+    }
+    // end of security check
+
+    // if (user) {
+    //   $match.$and!.push({ 'driver._id': { $eq: new mongoose.Types.ObjectId(user) } })
+    // }
     if (car) {
       $match.$and!.push({ 'car._id': { $eq: new mongoose.Types.ObjectId(car) } })
     }
@@ -1059,8 +1064,8 @@ export const getBookings = async (req: Request, res: Response) => {
 
     res.json(data)
   } catch (err) {
-    logger.error(`[booking.getBookings] ${i18n.t('DB_ERROR')} ${JSON.stringify(req.body)}`, err)
-    res.status(400).send(i18n.t('DB_ERROR') + err)
+    logger.error(`[booking.getBookings] ${i18n.t('ERROR')} ${JSON.stringify(req.body)}`, err)
+    res.status(400).send(i18n.t('ERROR') + err)
   }
 }
 
@@ -1091,8 +1096,8 @@ export const hasBookings = async (req: Request, res: Response) => {
 
     res.sendStatus(204)
   } catch (err) {
-    logger.error(`[booking.hasBookings] ${i18n.t('DB_ERROR')} ${driver}`, err)
-    res.status(400).send(i18n.t('DB_ERROR') + err)
+    logger.error(`[booking.hasBookings] ${i18n.t('ERROR')} ${driver}`, err)
+    res.status(400).send(i18n.t('ERROR') + err)
   }
 }
 
@@ -1143,7 +1148,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
 
     res.sendStatus(204)
   } catch (err) {
-    logger.error(`[booking.cancelBooking] ${i18n.t('DB_ERROR')} ${id}`, err)
-    res.status(400).send(i18n.t('DB_ERROR') + err)
+    logger.error(`[booking.cancelBooking] ${i18n.t('ERROR')} ${id}`, err)
+    res.status(400).send(i18n.t('ERROR') + err)
   }
 }
